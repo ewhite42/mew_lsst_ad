@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 import xgboost as xgb
 
 def algo_results(data, models, label, iterations = 10, with_noise=True, noise_level = 1, silent = False):
+
+    ## initialize a nested dictionary where the keys correspond
+    ## to the keys from the models dictionary (and thus the names of 
+    ## each unsupervised anomaly detection method), and each nested dictionary
+    ## has keys "BAL_ACC" and "F1" associated with empty lists
     scores = {key : {
         "BAL_ACC": [],
         "F1": []
@@ -17,7 +22,8 @@ def algo_results(data, models, label, iterations = 10, with_noise=True, noise_le
         for i in range(iterations):
             if with_noise:
                 #duplicate_idx = np.random.choice(500, size=100, replace=False)
-
+                
+                ## why does it select the last five columns when the last two columns are tsne data? -MEW
                 noisy_features = data[:, :5] + data[:, -5:] # 3 sigma noise
                 noisy_features =  np.concatenate([noisy_features]) #, noisy_features[duplicate_idx, 0:5]]) # Add duplicates
 
@@ -25,6 +31,7 @@ def algo_results(data, models, label, iterations = 10, with_noise=True, noise_le
                 
                 # Should I make use of training score?
                 
+                ## split the data into random x,y training and test datasets -MEW
                 X_train, X_test, y_train, y_test = train_test_split(
                     noisy_features, 
                     noisy_labels, 
@@ -44,14 +51,23 @@ def algo_results(data, models, label, iterations = 10, with_noise=True, noise_le
                     shuffle=True
                 )
 
+            ## fit the model that's selected in the loop to the X training set -MEW
             clf.fit(X_train)
 
+            ## get the prediction from the test data (returns outlier labels, 0 or 1) -MEW, from PyOD docs
             y_test_pred = clf.predict(X_test)  
             #y_test_scores = clf.decision_function(X_test) 
             
+            ## get the F1 score for this model as applied to this dataset: -MEW
             f1 = f1_score(np.array(y_test)/label, y_test_pred)
+            
+            ## get the balanced accuracy score for this model as applied to this dataset: -MEW
             balanced_accuracy =  balanced_accuracy_score(y_test, label*y_test_pred)
             
+            ## fill in the F1 and balanced accuracy scores for each model 
+            ## in the empty lists in the scores dictionary initialized above.
+            ## Note that a value for F1 and BAL_ACC are returned for each of the 
+            ## 10 iterations through the loop -MEW
             scores[name]["F1"].append(f1)
             scores[name]["BAL_ACC"].append(balanced_accuracy)
             
@@ -95,7 +111,7 @@ def algo_rank_results(data, models, label, iterations = 10, with_noise=True, noi
                 shuffle=True
             )
 
-        rn_model_idx = np.argsort(y_test)[:500]#MinMaxScaler().fit_transform(abs(y_test).reshape(-1,1)) #MinMaxScaler().fit_transform([y_test)
+        rn_model_idx = np.argsort(y_test)[:500] #MinMaxScaler().fit_transform(abs(y_test).reshape(-1,1)) #MinMaxScaler().fit_transform([y_test)
 
         for name, clf in zip(models.keys(), models.values()):
             
@@ -188,13 +204,18 @@ def algo_rank_local_results(data, label, iterations = 10, with_noise=True, noise
 
 
 def result_df(scores, anom_type):
+
+    ## initialize Pandas dataframe to store results -MEW
     _result_df = pd.DataFrame(
         columns = ["Algorithm", "score", "type", "metric"]
     )
 
+    ## loop through each model, then through both F1 and BAL_ACC, then through
+    ## each of the scores for each metric -MEW
     for model in scores:
         for metric in scores[model]:
             for score in scores[model][metric]:
+                ## append a row to _result_df with the model, score, anomaly type, and metric -MEW
                 _result_df.loc[len(_result_df)] = [model, score, anom_type, metric]
     return _result_df
 
