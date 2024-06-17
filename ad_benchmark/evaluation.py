@@ -247,6 +247,8 @@ def al_results(data, label, iterations = 10, with_noise=True, noise_level = .25,
     f1_scores = []
     acc_scores = []
     
+    ## split the data into two parts -- the first part consists of the first 20,000 samples (normal),
+    ## the second part consists of the last samples (data) -- MEW
     normal, data = np.split(data, [20000])
 
     for i in np.arange(1, 40, .5):
@@ -258,12 +260,17 @@ def al_results(data, label, iterations = 10, with_noise=True, noise_level = .25,
             if with_noise:
                 #duplicate_idx = np.random.choice(500, size=100, replace=False)
 
+                ## selects first and last five columns of each row of
+                ## data, which I imagine are the orbital / color parameters 
+                ## and associated noise measures - MEW
                 noisy_features = data[:, :5] + data[:, -5:] # 3 sigma noise
                 
                 noisy_features =  np.concatenate([noisy_features]) #, noisy_features[duplicate_idx, 0:5]]) # Add duplicates
 
+                ## create array containing the label of each datapoint (row) in data array -MEW
                 noisy_labels = np.concatenate([data[:, 5]]) #, data[duplicate_idx, 5]])
                 
+                ## split noisy_features into test and train data sets -MEW
                 # Should I make use of training score?
                 X_train, X_test, y_train, y_test = train_test_split(
                     noisy_features, 
@@ -274,21 +281,32 @@ def al_results(data, label, iterations = 10, with_noise=True, noise_level = .25,
                     #random_seed=42 # Is this a good way to regualarise the peakiness.
                 )
 
+                ## divide all y train and test data by the label number so that you
+                ## can just sum up the 1's in the y test array to get the total number
+                ## of labelled anomalies -MEW
                 y_train = np.array(y_train/float(label), dtype="int64")
                 y_test = np.array(y_test/float(label), dtype="int64")
 
+                ## append data from the first 5 columns of the normal array to 
+                ## the beginning of the X_test array, and append an array of zeros
+                ## (length same as normal array) to the beginning of the y_test array -MEW
                 X_test = np.concatenate([normal[:, 0:5], X_test])
                 y_test = np.concatenate([np.zeros(len(normal[:, 0:5])), y_test])
 
-                
-                
+                ## initialize XGBoost classifier and fit to the x and y test datasets -MEW
                 bst = xgb.XGBClassifier(max_depth = 25).fit(X_test, y_test)
                 #print(len(X_test), y_test.sum())
 
+                ## use XGBoost to predict the labels for each sample in X_train (I think?) -MEW
                 y_test_pred = bst.predict(X_train)#rfc.predict(X_train)
+                
+                ## compare true labels (y_train) with predicted labels (y_test_pred) to determine
+                ## how well XGBoost was able to determine whether a datapoint was an anomaly or not;
+                ## accuracies represented by the F1 and balanced accuracy scores -MEW
                 label_scoresf1.append(f1_score(y_train, y_test_pred))
                 label_scoresba.append(balanced_accuracy_score(y_train, y_test_pred))
 
+        
         f1_scores.append(label_scoresf1)
         acc_scores.append(label_scoresba)
         label_counts.append(y_test.sum())
