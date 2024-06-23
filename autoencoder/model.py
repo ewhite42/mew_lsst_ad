@@ -58,6 +58,7 @@ class AE(keras.Model):
 def build_model(hp):
     input_dim = 35 # Feature vector size
 
+    ## how are the min and max values here determined? -MEW
     neurons_first_layer = hp.Int(
       "first_layer",
       min_value=64,
@@ -74,46 +75,67 @@ def build_model(hp):
       min_value=16,
       max_value=32
     )
-
+    
+    ## create instance of Keras tensor with same shape as the data to be input -MEW
     encoder_inputs = keras.Input(shape=(input_dim,))
+    
+    ## initalize first encoder layer and normalization -MEW
     x = layers.Dense(
        neurons_first_layer
     )(encoder_inputs)
     x = layers.BatchNormalization()(x)
+    ## use relu activation function to calculate output of each node based on input -MEW
     x = tf.keras.activations.relu(x, max_value=1, threshold=0.0)
+    
+    ## initalize second encoder layer and normalization -MEW   
     x = layers.Dense(
         neurons_second_layer
     )(x)
     x = layers.BatchNormalization()(x)
     x = tf.keras.activations.relu(x, max_value=1, threshold=0.0)
+    
+    ## initalize third encoder layer and normalization -MEW   
     x = layers.Dense(
         neurons_third_layer
     )(x)
 
+    ## initialize latent representation layer -MEW 
     z = layers.Dense(latent_dim, name="z")(x)
+    
+    ## group encoder layers together into a Model object, which has training / inference features -MEW
     encoder = keras.Model(encoder_inputs, z, name="encoder")
 
+    ## create instance of Keras tensor with same shape as the latent dimension -MEW
     latent_inputs = keras.Input(shape=(latent_dim))
 
+    ## initialize third (innermost) decoder layer -MEW 
     x = layers.Dense(
         neurons_third_layer
     )(latent_inputs)
     x = tf.keras.activations.relu(x, max_value=1, threshold=0.0)
     x = layers.BatchNormalization()(x)
+    
+    ## initialize second (middle) decoder layer -MEW 
     x = layers.Dense(
         neurons_second_layer
     )(x)
     x = tf.keras.activations.relu(x, max_value=1, threshold=0.0)
     x = layers.BatchNormalization()(x)
+    
+    ## initialize first (outermost) decoder layer, which uses sigmoid function instead of RELU -MEW 
     x = layers.Dense(
         neurons_first_layer
     )(x)
 
     decoder_outputs = layers.Dense(input_dim, activation="sigmoid")(x)
+    
+    ## group decoder layers together into a Model object, which has training / inference features -MEW
     decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
 
+    ## create instance of AE (autoencoder) object, established with our newly created encoder and decoder models -MEW
     ae = AE(encoder, decoder)
 
+    ## configure the autoencoder model for training -MEW
     ae.compile(optimizer=keras.optimizers.Adam(
         learning_rate=hp.Choice('learning_rate', values=[1e-3, 1e-4]),
     ), run_eagerly=True)
